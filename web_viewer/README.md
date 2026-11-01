@@ -6,7 +6,8 @@ This Vite app displays the Dr. Johnson Nerfstudio Splatfacto reconstruction by d
 
 - Drag to orbit and scroll to zoom.
 - Hover over the trained view and hold `W`, `A`, `S`, or `D` to move through the scene.
-- Use **Reset view** to return to the hallway center.
+- Use **Reset view** to return to the center of the room.
+- The top-down room map shows the trained scene layout, room borders, and current camera position and direction.
 - Use **Fullscreen** to expand the viewer; press **Exit fullscreen** or `Esc` to return.
 - The trained view does not show model download or auto-rotate controls. The sparse-cloud tab retains its download link.
 

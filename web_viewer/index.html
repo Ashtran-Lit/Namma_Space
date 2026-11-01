@@ -72,6 +72,18 @@
               role="img"
               aria-label="Interactive Nerfstudio Gaussian splat. Drag to orbit, scroll to zoom, and use W A S D to move."
             ></div>
+            <aside id="room-minimap-panel" class="room-minimap" aria-label="Top-down room minimap">
+              <div class="room-minimap-heading">
+                <span>ROOM MAP</span>
+                <span id="minimap-position">X 0.00 · Y 0.00</span>
+              </div>
+              <canvas
+                id="room-minimap"
+                width="180"
+                height="180"
+                aria-label="Top-down map of the room showing your position and direction"
+              ></canvas>
+            </aside>
             <canvas
               id="scene-canvas"
               class="render-surface is-hidden"

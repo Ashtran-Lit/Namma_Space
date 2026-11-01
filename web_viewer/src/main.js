@@ -7,6 +7,10 @@ import './style.css';
 const trainedViewerElement = document.querySelector('#trained-viewer');
 const canvas = document.querySelector('#scene-canvas');
 const frame = document.querySelector('#viewer-frame');
+const minimapPanel = document.querySelector('#room-minimap-panel');
+const minimapCanvas = document.querySelector('#room-minimap');
+const minimapContext = minimapCanvas.getContext('2d');
+const minimapPosition = document.querySelector('#minimap-position');
 const loadingState = document.querySelector('#loading-state');
 const loadingMessage = document.querySelector('#loading-message');
 const pointCount = document.querySelector('#point-count');
@@ -35,6 +39,12 @@ let navigationFrame = 0;
 let lastNavigationTime = 0;
 const pressedNavigationKeys = new Set();
 const navigationSpeed = 1.5;
+const roomBounds = { minX: -1.5, maxX: 1.5, minY: -1.5, maxY: 1.5 };
+const minimapPadding = 18;
+const minimapCloud = new Uint8Array(64 * 92);
+const minimapCloudCanvas = document.createElement('canvas');
+minimapCloudCanvas.width = minimapCanvas.width;
+minimapCloudCanvas.height = minimapCanvas.height;
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color('#101714');
@@ -88,6 +98,165 @@ function getFitRadius(position) {
   return Math.max(distances[Math.floor((position.count - 1) * 0.995)], 0.01);
 }
 
+function getMinimapCoordinates(x, y) {
+  const width = minimapCanvas.width - minimapPadding * 2;
+  const height = minimapCanvas.height - minimapPadding * 2;
+  const scale = Math.min(
+    width / (roomBounds.maxX - roomBounds.minX),
+    height / (roomBounds.maxY - roomBounds.minY),
+  );
+  const roomWidth = (roomBounds.maxX - roomBounds.minX) * scale;
+  const roomHeight = (roomBounds.maxY - roomBounds.minY) * scale;
+  const left = (minimapCanvas.width - roomWidth) / 2;
+  const top = (minimapCanvas.height - roomHeight) / 2;
+  return {
+    x: left + (x - roomBounds.minX) * scale,
+    y: top + (roomBounds.maxY - y) * scale,
+  };
+}
+
+function drawMinimapBackground() {
+  const context = minimapCloudCanvas.getContext('2d');
+  const topLeft = getMinimapCoordinates(roomBounds.minX, roomBounds.maxY);
+  const bottomRight = getMinimapCoordinates(roomBounds.maxX, roomBounds.minY);
+  const cellWidth = (bottomRight.x - topLeft.x) / 64;
+  const cellHeight = (bottomRight.y - topLeft.y) / 92;
+
+  context.clearRect(0, 0, minimapCloudCanvas.width, minimapCloudCanvas.height);
+  context.fillStyle = 'rgba(5, 11, 8, 0.84)';
+  context.fillRect(topLeft.x, topLeft.y, bottomRight.x - topLeft.x, bottomRight.y - topLeft.y);
+
+  for (let row = 0; row < 92; row += 1) {
+    for (let column = 0; column < 64; column += 1) {
+      const density = minimapCloud[row * 64 + column];
+      if (!density) continue;
+
+      context.fillStyle = `rgba(193, 228, 155, ${Math.min(0.52, 0.12 + density * 0.055)})`;
+      context.fillRect(
+        topLeft.x + column * cellWidth,
+        topLeft.y + row * cellHeight,
+        Math.max(cellWidth, 1),
+        Math.max(cellHeight, 1),
+      );
+    }
+  }
+
+  context.beginPath();
+  for (let row = 0; row < 92; row += 1) {
+    for (let column = 0; column < 64; column += 1) {
+      if (minimapCloud[row * 64 + column] < 2) continue;
+
+      const left = topLeft.x + column * cellWidth;
+      const right = left + cellWidth;
+      const top = topLeft.y + row * cellHeight;
+      const bottom = top + cellHeight;
+      if (column === 0 || minimapCloud[row * 64 + column - 1] < 2) {
+        context.moveTo(left, top);
+        context.lineTo(left, bottom);
+      }
+      if (column === 63 || minimapCloud[row * 64 + column + 1] < 2) {
+        context.moveTo(right, top);
+        context.lineTo(right, bottom);
+      }
+      if (row === 0 || minimapCloud[(row - 1) * 64 + column] < 2) {
+        context.moveTo(left, top);
+        context.lineTo(right, top);
+      }
+      if (row === 91 || minimapCloud[(row + 1) * 64 + column] < 2) {
+        context.moveTo(left, bottom);
+        context.lineTo(right, bottom);
+      }
+    }
+  }
+  context.strokeStyle = 'rgba(238, 240, 233, 0.9)';
+  context.lineWidth = 1.2;
+  context.stroke();
+
+  context.strokeStyle = 'rgba(232, 238, 224, 0.42)';
+  context.lineWidth = 1.5;
+  context.strokeRect(topLeft.x, topLeft.y, bottomRight.x - topLeft.x, bottomRight.y - topLeft.y);
+  context.strokeStyle = 'rgba(232, 238, 224, 0.14)';
+  context.lineWidth = 1;
+  for (let division = 1; division < 4; division += 1) {
+    const x = topLeft.x + (bottomRight.x - topLeft.x) * division / 4;
+    const y = topLeft.y + (bottomRight.y - topLeft.y) * division / 4;
+    context.beginPath();
+    context.moveTo(x, topLeft.y);
+    context.lineTo(x, bottomRight.y);
+    context.moveTo(topLeft.x, y);
+    context.lineTo(bottomRight.x, y);
+    context.stroke();
+  }
+
+  context.fillStyle = 'rgba(238, 240, 233, 0.72)';
+  context.font = '9px Segoe UI, sans-serif';
+  context.textAlign = 'center';
+  context.fillText('N', (topLeft.x + bottomRight.x) / 2, topLeft.y - 6);
+}
+
+function buildMinimapCloud() {
+  const mesh = gaussianViewer.splatMesh;
+  const center = new THREE.Vector3();
+  const splatCount = mesh.getSplatCount();
+  const sampleCount = Math.min(20_000, splatCount);
+  let seed = 0x9e3779b9;
+
+  minimapCloud.fill(0);
+  for (let sample = 0; sample < sampleCount; sample += 1) {
+    seed = (1_664_525 * seed + 1_013_904_223) >>> 0;
+    const index = Math.floor(seed / 4_294_967_296 * splatCount);
+    mesh.getSplatCenter(index, center, true);
+    if (
+      center.x < roomBounds.minX || center.x > roomBounds.maxX
+      || center.y < roomBounds.minY || center.y > roomBounds.maxY
+    ) {
+      continue;
+    }
+
+    const column = Math.min(63, Math.floor(
+      (center.x - roomBounds.minX) / (roomBounds.maxX - roomBounds.minX) * 64,
+    ));
+    const row = Math.min(91, Math.floor(
+      (roomBounds.maxY - center.y) / (roomBounds.maxY - roomBounds.minY) * 92,
+    ));
+    const cell = row * 64 + column;
+    minimapCloud[cell] = Math.min(minimapCloud[cell] + 1, 255);
+  }
+
+  drawMinimapBackground();
+}
+
+function updateRoomMinimap() {
+  if (!gaussianViewer || activeMode !== 'trained') return;
+
+  const camera = gaussianViewer.camera;
+  const position = getMinimapCoordinates(camera.position.x, camera.position.y);
+
+  const context = minimapContext;
+  context.clearRect(0, 0, minimapCanvas.width, minimapCanvas.height);
+  context.drawImage(minimapCloudCanvas, 0, 0);
+
+  const direction = camera.getWorldDirection(new THREE.Vector3());
+  const angle = Math.atan2(direction.x, direction.y);
+  context.save();
+  context.translate(position.x, position.y);
+  context.rotate(angle);
+  context.beginPath();
+  context.moveTo(0, -8);
+  context.lineTo(6, 6);
+  context.lineTo(0, 3);
+  context.lineTo(-6, 6);
+  context.closePath();
+  context.fillStyle = '#c1e49b';
+  context.strokeStyle = '#101714';
+  context.lineWidth = 2;
+  context.fill();
+  context.stroke();
+  context.restore();
+
+  minimapPosition.textContent = `X ${camera.position.x.toFixed(1)} · Y ${camera.position.y.toFixed(1)}`;
+}
+
 function updateLoadingState() {
   const isLoaded = activeMode === 'trained' ? trainedLoaded : sparseLoaded;
   const hasFailed = activeMode === 'trained' ? trainedFailed : sparseFailed;
@@ -120,6 +289,7 @@ function setMode(mode) {
   trainedViewerPointerInside = false;
 
   trainedViewerElement.classList.toggle('is-hidden', !showTrained);
+  minimapPanel.classList.toggle('is-hidden', !showTrained);
   canvas.classList.toggle('is-hidden', showTrained);
   canvas.setAttribute('aria-hidden', String(showTrained));
   trainedModeButton.classList.toggle('is-active', showTrained);
@@ -129,7 +299,10 @@ function setMode(mode) {
 
   if (showTrained) {
     if (sparsePoints) scene.remove(sparsePoints);
-    if (trainedLoaded) gaussianViewer.start();
+    if (trainedLoaded) {
+      gaussianViewer.start();
+      updateRoomMinimap();
+    }
     viewerTagLabel.textContent = 'NERFSTUDIO SPLATFACTO';
     sceneDescription.textContent = 'Nerfstudio Splatfacto · RGB Gaussian splats';
     pointCount.textContent = `${trainedSplatCount.toLocaleString()} Gaussian splats · step 29,999`;
@@ -159,8 +332,8 @@ resizeViewer();
 gaussianViewer = new GaussianSplats3D.Viewer({
   rootElement: trainedViewerElement,
   cameraUp: [0, 0, 1],
-  initialCameraPosition: [-2.16, -3.72, 0.74],
-  initialCameraLookAt: [0, 0, 0],
+  initialCameraPosition: [-0.53, -1.2, 0.88],
+  initialCameraLookAt: [0.2, 0.8, 0.35],
   gpuAcceleratedSort: false,
   sharedMemoryForWorkers: false,
   halfPrecisionCovariancesOnGPU: true,
@@ -168,6 +341,7 @@ gaussianViewer = new GaussianSplats3D.Viewer({
   sphericalHarmonicsDegree: 0,
 });
 gaussianViewer.controls?.stopListenToKeyEvents();
+gaussianViewer.controls?.addEventListener('change', updateRoomMinimap);
 
 gaussianViewer.addSplatScene(trainedModelUrl, {
   showLoadingUI: false,
@@ -175,6 +349,8 @@ gaussianViewer.addSplatScene(trainedModelUrl, {
   splatAlphaRemovalThreshold: 1,
 }).then(() => {
   trainedLoaded = true;
+  buildMinimapCloud();
+  updateRoomMinimap();
   if (activeMode === 'trained') gaussianViewer.start();
   updateLoadingState();
   if (activeMode === 'trained') {
@@ -242,7 +418,10 @@ sparseModeButton.addEventListener('click', () => setMode('sparse'));
 
 resetButton.addEventListener('click', () => {
   const activeControls = activeMode === 'trained' ? gaussianViewer.controls : sparseControls;
-  if (activeControls) activeControls.reset();
+  if (activeControls) {
+    activeControls.reset();
+    if (activeMode === 'trained') updateRoomMinimap();
+  }
 });
 
 function updateFullscreenButton() {
@@ -312,6 +491,7 @@ function moveTrainedCamera(timestamp) {
     camera.position.add(movement);
     controls.target.add(movement);
     controls.update();
+    updateRoomMinimap();
   }
 
   navigationFrame = requestAnimationFrame(moveTrainedCamera);
