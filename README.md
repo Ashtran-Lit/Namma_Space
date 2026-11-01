@@ -1,14 +1,13 @@
 # Namma Space — 3D Reconstruction
 
-Namma Space is a project to turn indoor captures into 3D digital spaces using COLMAP and Nerfstudio Splatfacto, with a browser-based viewer for exploring reconstructed scenes.
+Namma Space turns indoor captures into 3D digital spaces using COLMAP and Nerfstudio Splatfacto, with a browser viewer for exploring both the trained Gaussian reconstruction and the underlying sparse point cloud.
 
 ## What is in this repository
 
-- `web_viewer/` is a static Vite + Three.js viewer ready for Vercel.
-- The viewer currently displays the Dr. Johnson sparse RGB point cloud (`80,861` points) from `web_viewer/public/models/sparse_pc.ply`.
-- The original capture photos, COLMAP working files, training checkpoints, workflow scripts, and project PDFs are not included in this checkout. The `.gitignore` keeps raw datasets and generated training files out of the web deployment.
-
-The current web viewer displays a sparse point cloud; it does not yet render a trained Gaussian Splatfacto model.
+- `web_viewer/` is a static Vite viewer for Vercel.
+- The Dr. Johnson Splatfacto export is `web_viewer/public/models/drjohnson-splat-rgb.ply` (about 67 MB, 1,025,179 splats).
+- The source COLMAP point cloud is `web_viewer/public/models/sparse_pc.ply`.
+- The original photos, COLMAP working files, and 705 MB Nerfstudio training checkpoint are not included. The checkpoint is a training artifact, not a browser asset; the optimized RGB Gaussian PLY is what the viewer loads.
 
 ## Run the viewer locally
 
@@ -29,21 +28,24 @@ npm run preview
 
 ## Deploy to Vercel
 
-1. Import `https://github.com/Ashtran-Lit/Namma_Space` into Vercel.
-2. Set **Root Directory** to `web_viewer`.
-3. Use the Vite framework preset, build command `npm run build`, and output directory `dist`.
-4. Deploy. The PLY asset is bundled with the viewer from `web_viewer/public/models/`.
+The existing Vercel project uses `web_viewer` as its Root Directory. Keep that setting, and use the Vite build command `npm run build` with output directory `dist`. The project configuration and cross-origin-isolation headers are in `web_viewer/vercel.json`.
 
-Vercel can automatically create preview deployments for pull requests and production deployments for pushes to the configured production branch.
+Push changes to the connected production branch to deploy the updated viewer.
 
-## Intended reconstruction workflow
+## Nerfstudio model
 
-The planned project pipeline is:
+The trained checkpoint is a Nerfstudio 1.1.5 Splatfacto model at step 29,999. It was exported as a browser-compatible Gaussian PLY with RGB colors, reducing the file from about 243 MiB with full spherical harmonics to about 58 MiB. The browser viewer renders the trained splats by default and offers the COLMAP sparse point cloud as an alternate view.
 
-1. Capture overlapping photographs or video frames of an indoor space.
-2. Use COLMAP to estimate camera poses and sparse geometry.
+See [`trained_models/drjohnson/README.md`](./trained_models/drjohnson/README.md) for export and file-size guidance. The browser asset normalizes RGB values for the viewer. The checkpoint itself should remain outside Git; `.gitignore` excludes `*.ckpt`.
+
+## Reconstruction workflow
+
+The intended pipeline is:
+
+1. Capture overlapping photographs or video frames.
+2. Estimate camera poses and sparse geometry with COLMAP.
 3. Prepare the capture for Nerfstudio.
-4. Train a Splatfacto model and export the result.
-5. Add a Gaussian-splat-compatible browser renderer to view the trained model.
+4. Train a Splatfacto model and export a Gaussian PLY.
+5. Replace the viewer model asset and update its metadata when publishing a new scene.
 
-The capture/training scripts and documentation described in the original project outline still need to be added to this repository.
+Raw captures and generated checkpoints should be stored separately from this static web deployment.

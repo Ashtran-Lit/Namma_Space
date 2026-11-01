@@ -1,17 +1,34 @@
+import * as GaussianSplats3D from '@mkkellogg/gaussian-splats-3d';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { PLYLoader } from 'three/addons/loaders/PLYLoader.js';
 import './style.css';
 
+const trainedViewerElement = document.querySelector('#trained-viewer');
 const canvas = document.querySelector('#scene-canvas');
 const frame = document.querySelector('#viewer-frame');
 const loadingState = document.querySelector('#loading-state');
 const loadingMessage = document.querySelector('#loading-message');
 const pointCount = document.querySelector('#point-count');
+const sceneDescription = document.querySelector('#scene-description');
+const viewerTagLabel = document.querySelector('#viewer-tag-label');
+const trainedModeButton = document.querySelector('#trained-mode');
+const sparseModeButton = document.querySelector('#sparse-mode');
 const rotateButton = document.querySelector('#rotate-button');
 const resetButton = document.querySelector('#reset-button');
 const downloadLink = document.querySelector('#download-link');
-const pointCloudUrl = '/models/sparse_pc.ply';
+
+const trainedModelUrl = '/models/drjohnson-splat-rgb.ply';
+const sparseModelUrl = '/models/sparse_pc.ply';
+const trainedSplatCount = 1_025_179;
+let activeMode = 'trained';
+let trainedLoaded = false;
+let sparseLoaded = false;
+let trainedFailed = false;
+let sparseFailed = false;
+let sparseGeometry;
+let sparsePoints;
+let gaussianViewer;
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color('#101714');
@@ -27,11 +44,11 @@ const renderer = new THREE.WebGLRenderer({
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true;
-controls.dampingFactor = 0.06;
-controls.autoRotate = false;
-controls.autoRotateSpeed = 0.65;
+const sparseControls = new OrbitControls(camera, renderer.domElement);
+sparseControls.enableDamping = true;
+sparseControls.dampingFactor = 0.06;
+sparseControls.autoRotate = false;
+sparseControls.autoRotateSpeed = 0.65;
 
 function resizeViewer() {
   const { width, height } = frame.getBoundingClientRect();
@@ -67,31 +84,118 @@ function getFitRadius(position) {
   return Math.max(distances[Math.floor((position.count - 1) * 0.995)], 0.01);
 }
 
+function updateLoadingState() {
+  const isLoaded = activeMode === 'trained' ? trainedLoaded : sparseLoaded;
+  const hasFailed = activeMode === 'trained' ? trainedFailed : sparseFailed;
+
+  if (isLoaded) {
+    loadingState.classList.remove('is-error');
+    loadingState.classList.add('is-hidden');
+    return;
+  }
+
+  loadingState.classList.remove('is-hidden');
+  if (hasFailed) {
+    loadingState.classList.add('is-error');
+    loadingMessage.textContent = activeMode === 'trained'
+      ? 'Trained model could not be loaded. Try the COLMAP sparse view.'
+      : 'Sparse point cloud could not be loaded.';
+    return;
+  }
+
+  loadingState.classList.remove('is-error');
+  loadingMessage.textContent = activeMode === 'trained'
+    ? 'Loading trained Gaussian model…'
+    : 'Loading COLMAP sparse cloud…';
+}
+
+function setMode(mode) {
+  activeMode = mode;
+  const showTrained = mode === 'trained';
+
+  trainedViewerElement.classList.toggle('is-hidden', !showTrained);
+  canvas.classList.toggle('is-hidden', showTrained);
+  canvas.setAttribute('aria-hidden', String(showTrained));
+  trainedModeButton.classList.toggle('is-active', showTrained);
+  trainedModeButton.setAttribute('aria-selected', String(showTrained));
+  sparseModeButton.classList.toggle('is-active', !showTrained);
+  sparseModeButton.setAttribute('aria-selected', String(!showTrained));
+
+  if (showTrained) {
+    if (sparsePoints) scene.remove(sparsePoints);
+    if (trainedLoaded) gaussianViewer.start();
+    sparseControls.autoRotate = false;
+    viewerTagLabel.textContent = 'NERFSTUDIO SPLATFACTO';
+    sceneDescription.textContent = 'Nerfstudio Splatfacto · RGB Gaussian splats';
+    pointCount.textContent = `${trainedSplatCount.toLocaleString()} Gaussian splats · step 29,999`;
+    downloadLink.href = trainedModelUrl;
+    downloadLink.download = 'drjohnson-splatfacto.ply';
+  } else {
+    if (gaussianViewer) gaussianViewer.stop();
+    if (sparsePoints) scene.add(sparsePoints);
+    sparseControls.autoRotate = false;
+    viewerTagLabel.textContent = 'COLMAP SPARSE RECONSTRUCTION';
+    sceneDescription.textContent = 'Photogrammetry · RGB point cloud';
+    pointCount.textContent = sparseLoaded
+      ? `${sparseGeometry.getAttribute('position').count.toLocaleString()} points`
+      : 'COLMAP sparse cloud';
+    downloadLink.href = sparseModelUrl;
+    downloadLink.download = 'drjohnson-colmap-sparse.ply';
+  }
+
+  rotateButton.setAttribute('aria-pressed', 'false');
+  updateLoadingState();
+}
+
 const resizeObserver = new ResizeObserver(resizeViewer);
 resizeObserver.observe(frame);
 resizeViewer();
 
-function showError(message) {
-  loadingState.classList.add('is-error');
-  loadingMessage.textContent = message;
-  pointCount.textContent = 'Point cloud could not be loaded';
-}
+gaussianViewer = new GaussianSplats3D.Viewer({
+  rootElement: trainedViewerElement,
+  cameraUp: [0, 0, 1],
+  initialCameraPosition: [-2.16, -3.72, 0.74],
+  initialCameraLookAt: [-0.65, 0.5, 0.33],
+  gpuAcceleratedSort: false,
+  sharedMemoryForWorkers: false,
+  halfPrecisionCovariancesOnGPU: true,
+  integerBasedSort: false,
+  sphericalHarmonicsDegree: 0,
+});
+
+gaussianViewer.addSplatScene(trainedModelUrl, {
+  showLoadingUI: false,
+  progressiveLoad: true,
+  splatAlphaRemovalThreshold: 1,
+}).then(() => {
+  trainedLoaded = true;
+  if (activeMode === 'trained') gaussianViewer.start();
+  updateLoadingState();
+  if (activeMode === 'trained') {
+    pointCount.textContent = `${trainedSplatCount.toLocaleString()} Gaussian splats · step 29,999`;
+  }
+}).catch((error) => {
+  console.error('Unable to load the Nerfstudio Gaussian splat.', error);
+  trainedFailed = true;
+  updateLoadingState();
+});
 
 new PLYLoader().load(
-  pointCloudUrl,
+  sparseModelUrl,
   (geometry) => {
     const positions = geometry.getAttribute('position');
     if (!positions || positions.count === 0) {
       geometry.dispose();
-      showError('The point-cloud file contains no points.');
+      sparseFailed = true;
+      updateLoadingState();
       return;
     }
 
-    // Robust bounds keep a few reconstruction outliers from shrinking the scene.
     const center = getMedianCenter(positions);
     geometry.translate(-center.x, -center.y, -center.z);
     const radius = getFitRadius(geometry.getAttribute('position'));
     scene.fog = new THREE.Fog('#101714', radius * 3, radius * 8);
+
     const material = new THREE.PointsMaterial({
       size: Math.max(radius * 0.004, 0.012),
       sizeAttenuation: true,
@@ -100,41 +204,52 @@ new PLYLoader().load(
       transparent: true,
       opacity: 0.96,
     });
-    const points = new THREE.Points(geometry, material);
-    scene.add(points);
+    sparseGeometry = geometry;
+    sparsePoints = new THREE.Points(sparseGeometry, material);
+    if (activeMode === 'sparse') scene.add(sparsePoints);
 
     camera.position.set(radius * 1.5, radius * 0.9, radius * 2.3);
     camera.near = Math.max(radius / 1000, 0.001);
     camera.far = Math.max(radius * 30, 100);
     camera.updateProjectionMatrix();
-    controls.target.set(0, 0, 0);
-    controls.minDistance = Math.max(radius * 0.08, 0.05);
-    controls.maxDistance = Math.max(radius * 12, 10);
-    controls.update();
+    sparseControls.target.set(0, 0, 0);
+    sparseControls.minDistance = Math.max(radius * 0.08, 0.05);
+    sparseControls.maxDistance = Math.max(radius * 12, 10);
+    sparseControls.update();
 
-    pointCount.textContent = `${positions.count.toLocaleString()} points`;
-    downloadLink.href = pointCloudUrl;
-    loadingState.classList.add('is-hidden');
+    sparseLoaded = true;
+    if (activeMode === 'sparse') {
+      pointCount.textContent = `${positions.count.toLocaleString()} points`;
+    }
+    updateLoadingState();
   },
   undefined,
   (error) => {
-    console.error('Unable to load the Namma Space point cloud.', error);
-    showError('Could not load the point cloud. Please refresh and try again.');
+    console.error('Unable to load the COLMAP sparse point cloud.', error);
+    sparseFailed = true;
+    updateLoadingState();
   },
 );
 
+trainedModeButton.addEventListener('click', () => setMode('trained'));
+sparseModeButton.addEventListener('click', () => setMode('sparse'));
+
 rotateButton.addEventListener('click', () => {
-  controls.autoRotate = !controls.autoRotate;
-  rotateButton.setAttribute('aria-pressed', String(controls.autoRotate));
+  const activeControls = activeMode === 'trained' ? gaussianViewer.controls : sparseControls;
+  if (!activeControls) return;
+  activeControls.autoRotate = !activeControls.autoRotate;
+  rotateButton.setAttribute('aria-pressed', String(activeControls.autoRotate));
 });
 
 resetButton.addEventListener('click', () => {
-  controls.reset();
+  const activeControls = activeMode === 'trained' ? gaussianViewer.controls : sparseControls;
+  if (activeControls) activeControls.reset();
 });
 
 function animate() {
-  controls.update();
+  sparseControls.update();
   renderer.render(scene, camera);
 }
 
 renderer.setAnimationLoop(animate);
+setMode(activeMode);

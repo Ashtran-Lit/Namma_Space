@@ -73,3 +73,4 @@ dataparser_transforms.json
 
 # Keep the point cloud that the static web viewer needs.
 !web_viewer/public/models/sparse_pc.ply
+!web_viewer/public/models/drjohnson-splat-rgb.ply

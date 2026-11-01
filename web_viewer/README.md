@@ -1,28 +1,26 @@
-# Namma Space viewer
+# Namma Space web viewer
 
-A static Vite site for exploring the Dr. Johnson sparse RGB point cloud in a browser. The viewer uses Three.js to render `public/models/sparse_pc.ply`. The source photos and other training data are not included in the web build.
+This Vite app displays the Dr. Johnson Nerfstudio Splatfacto reconstruction by default. Use the tabs to switch between the trained Gaussian splats and the COLMAP sparse point cloud.
 
 ## Run locally
 
-From this directory:
+Requires Node.js 18 or later.
 
-```bash
-npm install
+```powershell
+npm ci
 npm run dev
 ```
 
-Create and preview a production build:
+The Vite development and preview servers use the same cross-origin isolation headers as Vercel. The viewer uses non-shared worker memory and CPU sorting for reliable Gaussian rendering. Use `npm run build` and `npm run preview` to test a production build.
 
-```bash
-npm run build
-npm run preview
-```
+## Model files
 
-## Deploy to Vercel
+- `public/models/drjohnson-splat-rgb.ply` is the browser-ready trained model.
+- `public/models/sparse_pc.ply` is the COLMAP alternative.
+- Training checkpoints and raw captures are intentionally kept out of this static deployment.
 
-1. Import the Git repository into Vercel.
-2. Set **Root Directory** to `web_viewer`.
-3. Use the detected Vite settings, or set the build command to `npm run build` and output directory to `dist`.
-4. Deploy. The viewer includes its required point-cloud asset under `public/models/`.
+The trained asset uses normalized floating-point RGB fields for compatibility with the browser renderer. To prepare a fresh RGB export, run Nerfstudio's `ns-export gaussian-splat --ply-color-mode rgb`, then convert the resulting PLY with the script documented in [`trained_models/drjohnson/README.md`](../trained_models/drjohnson/README.md).
 
-This directory is only the web viewer; capture and model-training scripts belong in the repository's separate project workflow.
+## Vercel
+
+The existing Vercel project should use this directory as its Root Directory, with `npm run build` and `dist` as the output directory. `vercel.json` configures the cross-origin isolation response headers used by the renderer.

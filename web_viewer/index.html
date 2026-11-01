@@ -30,36 +30,73 @@
           </p>
         </section>
 
-        <section class="viewer-section" aria-label="Interactive 3D point cloud">
+        <section class="viewer-section" aria-label="Interactive 3D reconstruction">
           <div class="viewer-heading">
             <div>
               <p class="eyebrow">SCENE VIEWER</p>
               <h2>Dr. Johnson</h2>
             </div>
-            <span class="viewer-tag"><span class="status-dot"></span> SPARSE RECONSTRUCTION</span>
+            <span class="viewer-tag">
+              <span class="status-dot"></span>
+              <span id="viewer-tag-label">NERFSTUDIO SPLATFACTO</span>
+            </span>
+          </div>
+
+          <div class="scene-modes" role="tablist" aria-label="Reconstruction detail">
+            <button
+              class="scene-mode is-active"
+              id="trained-mode"
+              type="button"
+              role="tab"
+              aria-selected="true"
+              aria-controls="trained-viewer"
+            >
+              Trained Gaussian splats
+            </button>
+            <button
+              class="scene-mode"
+              id="sparse-mode"
+              type="button"
+              role="tab"
+              aria-selected="false"
+              aria-controls="scene-canvas"
+            >
+              COLMAP sparse cloud
+            </button>
           </div>
 
           <div class="viewer-frame" id="viewer-frame">
-            <canvas id="scene-canvas" aria-label="Interactive 3D point cloud. Drag to orbit and scroll to zoom."></canvas>
+            <div
+              id="trained-viewer"
+              class="render-surface"
+              role="img"
+              aria-label="Interactive Nerfstudio Gaussian splat. Drag to orbit and scroll to zoom."
+            ></div>
+            <canvas
+              id="scene-canvas"
+              class="render-surface is-hidden"
+              aria-label="Interactive COLMAP sparse point cloud. Drag to orbit and scroll to zoom."
+              aria-hidden="true"
+            ></canvas>
             <div class="loading-state" id="loading-state" role="status" aria-live="polite">
               <span class="loader" aria-hidden="true"></span>
-              <span id="loading-message">Loading point cloud…</span>
+              <span id="loading-message">Loading trained Gaussian model…</span>
             </div>
             <div class="viewer-controls" aria-label="Viewer controls">
               <button class="control-button" id="rotate-button" type="button" aria-pressed="false">
                 Auto rotate
               </button>
               <button class="control-button" id="reset-button" type="button">Reset view</button>
-              <a class="control-button download-button" id="download-link" download="namma-space-point-cloud.ply">
-                Download PLY
+              <a class="control-button download-button" id="download-link" download="drjohnson-splatfacto.ply">
+                Download model
               </a>
             </div>
             <p class="canvas-hint">DRAG TO ORBIT <span>·</span> SCROLL TO ZOOM</p>
           </div>
 
           <div class="scene-details">
-            <p id="point-count">Point cloud loading</p>
-            <p>Photogrammetry <span>·</span> RGB point cloud</p>
+            <p id="point-count">Trained model loading</p>
+            <p id="scene-description">Nerfstudio Splatfacto · RGB Gaussian splats</p>
           </div>
         </section>
 
