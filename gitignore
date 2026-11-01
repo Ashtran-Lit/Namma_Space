@@ -1,0 +1,72 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments and local environment configuration
+.venv/
+venv/
+env/
+.env
+.env.*
+!.env.example
+
+# Jupyter
+.ipynb_checkpoints/
+
+# IDE and operating-system files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Local datasets and raw captures (keep large data out of Git)
+data/
+datasets/
+deepblending/
+Room_Reconstruction/
+images/
+videos/
+*.mp4
+*.mov
+*.avi
+
+# COLMAP databases, reconstructions, and generated dense outputs
+*.db
+*.sqlite
+sparse/
+dense/
+stereo/
+colmap_output/
+colmap/
+*.bin
+*.ply
+*.pcd
+*.obj
+*.mtl
+*.glb
+*.gltf
+
+# Nerfstudio processed datasets and training outputs
+outputs/
+nerfstudio_output/
+ns-data/
+transforms.json
+dataparser_transforms.json
+*.ckpt
+*.pt
+*.pth
+*.safetensors
+*.msgpack
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+.cache/
