@@ -213,6 +213,16 @@ h1 span {
     #101714;
 }
 
+.viewer-frame:fullscreen {
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  max-height: none;
+  border: 0;
+  border-radius: 0;
+}
+
 .render-surface {
   position: absolute;
   inset: 0;
@@ -295,6 +305,10 @@ h1 span {
   backdrop-filter: blur(10px);
 }
 
+.control-button.is-hidden {
+  display: none;
+}
+
 .control-button:hover,
 .control-button[aria-pressed='true'] {
   border-color: rgba(193, 228, 155, 0.7);
@@ -316,6 +330,18 @@ h1 span {
   font-size: 8px;
   letter-spacing: 0.12em;
   pointer-events: none;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .canvas-hint span,
@@ -474,7 +500,7 @@ h1 span {
   }
 
   .canvas-hint {
-    bottom: 21px;
+    bottom: 56px;
     left: 10px;
     font-size: 7px;
   }

@@ -2,6 +2,14 @@
 
 This Vite app displays the Dr. Johnson Nerfstudio Splatfacto reconstruction by default. Use the tabs to switch between the trained Gaussian splats and the COLMAP sparse point cloud.
 
+## Viewer controls
+
+- Drag to orbit and scroll to zoom.
+- Hover over the trained view and hold `W`, `A`, `S`, or `D` to move through the scene.
+- Use **Reset view** to return to the hallway center.
+- Use **Fullscreen** to expand the viewer; press **Exit fullscreen** or `Esc` to return.
+- The trained view does not show model download or auto-rotate controls. The sparse-cloud tab retains its download link.
+
 ## Run locally
 
 Requires Node.js 18 or later.

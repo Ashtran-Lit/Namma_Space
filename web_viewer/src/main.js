@@ -14,9 +14,10 @@ const sceneDescription = document.querySelector('#scene-description');
 const viewerTagLabel = document.querySelector('#viewer-tag-label');
 const trainedModeButton = document.querySelector('#trained-mode');
 const sparseModeButton = document.querySelector('#sparse-mode');
-const rotateButton = document.querySelector('#rotate-button');
 const resetButton = document.querySelector('#reset-button');
+const fullscreenButton = document.querySelector('#fullscreen-button');
 const downloadLink = document.querySelector('#download-link');
+const viewerStatus = document.querySelector('#viewer-status');
 
 const trainedModelUrl = '/models/drjohnson-splat-rgb.ply';
 const sparseModelUrl = '/models/sparse_pc.ply';
@@ -29,6 +30,11 @@ let sparseFailed = false;
 let sparseGeometry;
 let sparsePoints;
 let gaussianViewer;
+let trainedViewerPointerInside = false;
+let navigationFrame = 0;
+let lastNavigationTime = 0;
+const pressedNavigationKeys = new Set();
+const navigationSpeed = 1.5;
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color('#101714');
@@ -47,8 +53,6 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 const sparseControls = new OrbitControls(camera, renderer.domElement);
 sparseControls.enableDamping = true;
 sparseControls.dampingFactor = 0.06;
-sparseControls.autoRotate = false;
-sparseControls.autoRotateSpeed = 0.65;
 
 function resizeViewer() {
   const { width, height } = frame.getBoundingClientRect();
@@ -112,6 +116,8 @@ function updateLoadingState() {
 function setMode(mode) {
   activeMode = mode;
   const showTrained = mode === 'trained';
+  clearNavigationKeys();
+  trainedViewerPointerInside = false;
 
   trainedViewerElement.classList.toggle('is-hidden', !showTrained);
   canvas.classList.toggle('is-hidden', showTrained);
@@ -124,16 +130,14 @@ function setMode(mode) {
   if (showTrained) {
     if (sparsePoints) scene.remove(sparsePoints);
     if (trainedLoaded) gaussianViewer.start();
-    sparseControls.autoRotate = false;
     viewerTagLabel.textContent = 'NERFSTUDIO SPLATFACTO';
     sceneDescription.textContent = 'Nerfstudio Splatfacto · RGB Gaussian splats';
     pointCount.textContent = `${trainedSplatCount.toLocaleString()} Gaussian splats · step 29,999`;
-    downloadLink.href = trainedModelUrl;
-    downloadLink.download = 'drjohnson-splatfacto.ply';
+    downloadLink.classList.add('is-hidden');
+    downloadLink.setAttribute('aria-hidden', 'true');
   } else {
     if (gaussianViewer) gaussianViewer.stop();
     if (sparsePoints) scene.add(sparsePoints);
-    sparseControls.autoRotate = false;
     viewerTagLabel.textContent = 'COLMAP SPARSE RECONSTRUCTION';
     sceneDescription.textContent = 'Photogrammetry · RGB point cloud';
     pointCount.textContent = sparseLoaded
@@ -141,9 +145,10 @@ function setMode(mode) {
       : 'COLMAP sparse cloud';
     downloadLink.href = sparseModelUrl;
     downloadLink.download = 'drjohnson-colmap-sparse.ply';
+    downloadLink.classList.remove('is-hidden');
+    downloadLink.setAttribute('aria-hidden', 'false');
   }
 
-  rotateButton.setAttribute('aria-pressed', 'false');
   updateLoadingState();
 }
 
@@ -155,13 +160,14 @@ gaussianViewer = new GaussianSplats3D.Viewer({
   rootElement: trainedViewerElement,
   cameraUp: [0, 0, 1],
   initialCameraPosition: [-2.16, -3.72, 0.74],
-  initialCameraLookAt: [-0.65, 0.5, 0.33],
+  initialCameraLookAt: [0, 0, 0],
   gpuAcceleratedSort: false,
   sharedMemoryForWorkers: false,
   halfPrecisionCovariancesOnGPU: true,
   integerBasedSort: false,
   sphericalHarmonicsDegree: 0,
 });
+gaussianViewer.controls?.stopListenToKeyEvents();
 
 gaussianViewer.addSplatScene(trainedModelUrl, {
   showLoadingUI: false,
@@ -234,17 +240,111 @@ new PLYLoader().load(
 trainedModeButton.addEventListener('click', () => setMode('trained'));
 sparseModeButton.addEventListener('click', () => setMode('sparse'));
 
-rotateButton.addEventListener('click', () => {
-  const activeControls = activeMode === 'trained' ? gaussianViewer.controls : sparseControls;
-  if (!activeControls) return;
-  activeControls.autoRotate = !activeControls.autoRotate;
-  rotateButton.setAttribute('aria-pressed', String(activeControls.autoRotate));
-});
-
 resetButton.addEventListener('click', () => {
   const activeControls = activeMode === 'trained' ? gaussianViewer.controls : sparseControls;
   if (activeControls) activeControls.reset();
 });
+
+function updateFullscreenButton() {
+  const isFullscreen = document.fullscreenElement === frame;
+  fullscreenButton.textContent = isFullscreen ? 'Exit fullscreen' : 'Fullscreen';
+  fullscreenButton.setAttribute('aria-pressed', String(isFullscreen));
+  fullscreenButton.setAttribute(
+    'aria-label',
+    isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen',
+  );
+}
+
+fullscreenButton.addEventListener('click', async () => {
+  try {
+    if (document.fullscreenElement === frame) {
+      await document.exitFullscreen();
+    } else {
+      await frame.requestFullscreen();
+    }
+    viewerStatus.textContent = '';
+  } catch (error) {
+    console.error('Unable to change viewer fullscreen state.', error);
+    viewerStatus.textContent = 'Fullscreen is unavailable in this browser.';
+  }
+});
+
+document.addEventListener('fullscreenchange', updateFullscreenButton);
+updateFullscreenButton();
+
+function clearNavigationKeys() {
+  pressedNavigationKeys.clear();
+  lastNavigationTime = 0;
+}
+
+function moveTrainedCamera(timestamp) {
+  if (
+    activeMode !== 'trained'
+    || !trainedLoaded
+    || !trainedViewerPointerInside
+    || pressedNavigationKeys.size === 0
+  ) {
+    navigationFrame = 0;
+    lastNavigationTime = 0;
+    return;
+  }
+
+  const camera = gaussianViewer.camera;
+  const controls = gaussianViewer.controls;
+  const deltaSeconds = lastNavigationTime
+    ? Math.min((timestamp - lastNavigationTime) / 1000, 0.05)
+    : 0;
+  lastNavigationTime = timestamp;
+
+  const forward = controls.target.clone().sub(camera.position);
+  forward.z = 0;
+  if (forward.lengthSq() > 0) forward.normalize();
+  const right = forward.clone().cross(new THREE.Vector3(0, 0, 1)).normalize();
+  const movement = new THREE.Vector3();
+
+  if (pressedNavigationKeys.has('KeyW')) movement.add(forward);
+  if (pressedNavigationKeys.has('KeyS')) movement.sub(forward);
+  if (pressedNavigationKeys.has('KeyD')) movement.add(right);
+  if (pressedNavigationKeys.has('KeyA')) movement.sub(right);
+
+  if (movement.lengthSq() > 0 && deltaSeconds > 0) {
+    movement.normalize().multiplyScalar(navigationSpeed * deltaSeconds);
+    camera.position.add(movement);
+    controls.target.add(movement);
+    controls.update();
+  }
+
+  navigationFrame = requestAnimationFrame(moveTrainedCamera);
+}
+
+trainedViewerElement.addEventListener('pointerenter', () => {
+  trainedViewerPointerInside = true;
+});
+trainedViewerElement.addEventListener('pointerleave', () => {
+  trainedViewerPointerInside = false;
+  clearNavigationKeys();
+});
+
+window.addEventListener('keydown', (event) => {
+  if (
+    activeMode !== 'trained'
+    || !trainedLoaded
+    || !trainedViewerPointerInside
+    || !['KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(event.code)
+    || event.target instanceof HTMLElement
+      && (event.target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName))
+  ) {
+    return;
+  }
+
+  event.preventDefault();
+  pressedNavigationKeys.add(event.code);
+  if (!navigationFrame) navigationFrame = requestAnimationFrame(moveTrainedCamera);
+});
+window.addEventListener('keyup', (event) => {
+  pressedNavigationKeys.delete(event.code);
+});
+window.addEventListener('blur', clearNavigationKeys);
 
 function animate() {
   sparseControls.update();

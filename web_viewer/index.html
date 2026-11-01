@@ -70,7 +70,7 @@
               id="trained-viewer"
               class="render-surface"
               role="img"
-              aria-label="Interactive Nerfstudio Gaussian splat. Drag to orbit and scroll to zoom."
+              aria-label="Interactive Nerfstudio Gaussian splat. Drag to orbit, scroll to zoom, and use W A S D to move."
             ></div>
             <canvas
               id="scene-canvas"
@@ -83,16 +83,23 @@
               <span id="loading-message">Loading trained Gaussian model…</span>
             </div>
             <div class="viewer-controls" aria-label="Viewer controls">
-              <button class="control-button" id="rotate-button" type="button" aria-pressed="false">
-                Auto rotate
-              </button>
               <button class="control-button" id="reset-button" type="button">Reset view</button>
+              <button
+                class="control-button"
+                id="fullscreen-button"
+                type="button"
+                aria-pressed="false"
+                aria-label="Enter fullscreen"
+              >
+                Fullscreen
+              </button>
               <a class="control-button download-button" id="download-link" download="drjohnson-splatfacto.ply">
                 Download model
               </a>
             </div>
-            <p class="canvas-hint">DRAG TO ORBIT <span>·</span> SCROLL TO ZOOM</p>
+            <p class="canvas-hint">DRAG TO ORBIT <span>·</span> SCROLL TO ZOOM <span>·</span> WASD TO MOVE</p>
           </div>
+          <p class="visually-hidden" id="viewer-status" role="status" aria-live="polite"></p>
 
           <div class="scene-details">
             <p id="point-count">Trained model loading</p>
