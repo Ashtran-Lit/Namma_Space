@@ -70,3 +70,6 @@ dataparser_transforms.json
 *.tmp
 *.temp
 .cache/
+
+# Keep the point cloud that the static web viewer needs.
+!web_viewer/public/models/sparse_pc.ply

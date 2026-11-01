@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Explore the Namma Space 3D reconstruction as an interactive point cloud."
+    />
+    <meta name="theme-color" content="#101714" />
+    <title>Namma Space — 3D Reconstruction</title>
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="topbar">
+        <a class="brand" href="#" aria-label="Namma Space home">
+          <span class="brand-mark" aria-hidden="true">N</span>
+          <span>NAMMA <span class="brand-light">SPACE</span></span>
+        </a>
+        <span class="topbar-note">A place, captured in space</span>
+      </header>
+
+      <main>
+        <section class="intro" aria-labelledby="page-title">
+          <p class="eyebrow"><span class="status-dot"></span> SPATIAL CAPTURE / 001</p>
+          <h1 id="page-title">A space, seen<br /><span>from every angle.</span></h1>
+          <p class="intro-copy">
+            An interactive look at a real-world scene reconstructed from photographs.
+            Orbit the point cloud to explore its shape, color, and depth.
+          </p>
+        </section>
+
+        <section class="viewer-section" aria-label="Interactive 3D point cloud">
+          <div class="viewer-heading">
+            <div>
+              <p class="eyebrow">SCENE VIEWER</p>
+              <h2>Dr. Johnson</h2>
+            </div>
+            <span class="viewer-tag"><span class="status-dot"></span> SPARSE RECONSTRUCTION</span>
+          </div>
+
+          <div class="viewer-frame" id="viewer-frame">
+            <canvas id="scene-canvas" aria-label="Interactive 3D point cloud. Drag to orbit and scroll to zoom."></canvas>
+            <div class="loading-state" id="loading-state" role="status" aria-live="polite">
+              <span class="loader" aria-hidden="true"></span>
+              <span id="loading-message">Loading point cloud…</span>
+            </div>
+            <div class="viewer-controls" aria-label="Viewer controls">
+              <button class="control-button" id="rotate-button" type="button" aria-pressed="false">
+                Auto rotate
+              </button>
+              <button class="control-button" id="reset-button" type="button">Reset view</button>
+              <a class="control-button download-button" id="download-link" download="namma-space-point-cloud.ply">
+                Download PLY
+              </a>
+            </div>
+            <p class="canvas-hint">DRAG TO ORBIT <span>·</span> SCROLL TO ZOOM</p>
+          </div>
+
+          <div class="scene-details">
+            <p id="point-count">Point cloud loading</p>
+            <p>Photogrammetry <span>·</span> RGB point cloud</p>
+          </div>
+        </section>
+
+        <section class="process-section" aria-labelledby="process-title">
+          <div class="section-heading">
+            <p class="eyebrow">FROM CAPTURE TO EXPERIENCE</p>
+            <h2 id="process-title">The reconstruction journey</h2>
+          </div>
+          <div class="process-grid">
+            <article class="process-card">
+              <span class="step-number">01</span>
+              <h3>Capture</h3>
+              <p>Photographs provide overlapping views of the space.</p>
+            </article>
+            <article class="process-card">
+              <span class="step-number">02</span>
+              <h3>Reconstruct</h3>
+              <p>Camera poses and sparse geometry form a shared scene.</p>
+            </article>
+            <article class="process-card">
+              <span class="step-number">03</span>
+              <h3>Train &amp; export</h3>
+              <p>Splatfacto training and model export prepare the scene for viewing.</p>
+            </article>
+          </div>
+        </section>
+      </main>
+
+      <footer class="footer">
+        <span>NAMMA SPACE</span>
+        <span>Explore a place in three dimensions.</span>
+      </footer>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
